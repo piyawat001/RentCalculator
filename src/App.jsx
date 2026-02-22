@@ -107,7 +107,9 @@ const RentCalculator = () => {
 
   const applyLatestReadingToForm = (reading) => {
     if (!reading) return;
-    setPrevElectricUnit(toNumber(reading.currentElectricUnit, 0));
+    const latestUnit = toNumber(reading.currentElectricUnit, 0);
+    setPrevElectricUnit(latestUnit);
+    setCurrentElectricUnit(latestUnit);
     setRoomPrice(toNumber(reading.roomPrice, 2500));
     setWaterPrice(toNumber(reading.waterPrice, 100));
     setElectricRate(toNumber(reading.electricRate, 6));
@@ -219,7 +221,9 @@ const RentCalculator = () => {
 
   const handleUseLatestAsPrevious = () => {
     if (!latestReading) return;
-    setPrevElectricUnit(toNumber(latestReading.currentElectricUnit, prevElectricUnit));
+    const latestUnit = toNumber(latestReading.currentElectricUnit, prevElectricUnit);
+    setPrevElectricUnit(latestUnit);
+    setCurrentElectricUnit(latestUnit);
     setSaveMessage(`ดึงเลขล่าสุด ${latestReading.currentElectricUnit} มาเป็น "เดือนที่แล้ว" แล้ว`);
   };
 
@@ -283,6 +287,7 @@ const RentCalculator = () => {
 
       setSaveMessage('บันทึกข้อมูลเรียบร้อย');
       setPrevElectricUnit(currentElectricUnit);
+      setCurrentElectricUnit(currentElectricUnit);
       setNote('');
     } catch (error) {
       addDebugLog('save:error', { message: error?.message });
