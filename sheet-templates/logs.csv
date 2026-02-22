@@ -1,0 +1,2 @@
+id,timestamp,action,actor,roomNo,billingMonth,detail
+log-sample-001,2026-02-22T10:00:00.000Z,SAVE_READING,owner,ROOM-1,2026-02,"{""before"":null,""after"":{""id"":""sample-001"",""roomNo"":""ROOM-1"",""billingMonth"":""2026-02""}}"

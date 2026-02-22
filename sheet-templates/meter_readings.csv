@@ -1,0 +1,2 @@
+id,roomNo,billingMonth,roomPrice,waterPrice,prevElectricUnit,currentElectricUnit,electricRate,targetBudget,electricUnitsUsed,electricCost,totalCost,note,createdAt,updatedAt
+sample-001,ROOM-1,2026-02,2500,100,595,652,6,2800,57,342,2942,ตัวอย่างข้อมูล,2026-02-22T10:00:00.000Z,2026-02-22T10:00:00.000Z
