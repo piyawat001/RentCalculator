@@ -59,6 +59,7 @@ const RentCalculator = () => {
   const [saveMessage, setSaveMessage] = useState('');
   const [syncMessage, setSyncMessage] = useState('');
   const [debugLogs, setDebugLogs] = useState([]);
+  const [activeTab, setActiveTab] = useState('entry');
 
   const appsScriptUrl = APPS_SCRIPT_URL;
   const requestUrl = APPS_SCRIPT_PROXY_PATH;
@@ -75,6 +76,7 @@ const RentCalculator = () => {
 
   const isOverBudget = totalCost > targetBudget;
   const isNearBudget = totalCost > targetBudget * 0.9;
+  const budgetStatus = isOverBudget ? 'over' : isNearBudget ? 'near' : 'ok';
 
   const latestReading = useMemo(() => sortByUpdatedDesc(history)[0] || null, [history]);
 
@@ -290,323 +292,513 @@ const RentCalculator = () => {
     }
   };
 
+  const tabs = [
+    { id: 'entry', label: 'กรอกข้อมูล', icon: '📝' },
+    { id: 'plan', label: 'แผนใช้ไฟ', icon: '📅' },
+    { id: 'history', label: 'ย้อนหลัง', icon: '📚' },
+    { id: 'logs', label: 'Logs', icon: '🧾' },
+    { id: 'sync', label: 'เชื่อมต่อ', icon: '🔗' },
+  ];
+
+  const statusUI = {
+    ok: {
+      badge: 'อยู่ในงบ',
+      border: 'border-emerald-300',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      ring: 'ring-emerald-300',
+    },
+    near: {
+      badge: 'ใกล้เกินงบ',
+      border: 'border-amber-300',
+      bg: 'bg-amber-50',
+      text: 'text-amber-700',
+      ring: 'ring-amber-300',
+    },
+    over: {
+      badge: 'เกินงบ',
+      border: 'border-rose-300',
+      bg: 'bg-rose-50',
+      text: 'text-rose-700',
+      ring: 'ring-rose-300',
+    },
+  }[budgetStatus];
+
   return (
-    <div className="min-h-screen bg-black p-4">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">🏠 คำนวณค่าห้องเช่า</h1>
-          <p className="text-gray-300">บันทึกย้อนหลังได้ และดึงเลขหน่วยไฟล่าสุดมาใช้เดือนถัดไป</p>
-        </div>
-
-        <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-4 mb-6 text-sm text-zinc-200">
-          <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#1f2937_0%,#0b1220_55%,#05070c_100%)] pb-24">
+      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
+        <header className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="font-semibold">Google Sheets Sync (optional)</div>
-              <div className="text-zinc-400 break-all">
-                {appsScriptUrl ? `เชื่อม URL แล้ว: ${appsScriptUrl}` : 'ยังไม่ตั้งค่า `APPS_SCRIPT_URL` ในโค้ด (ตอนนี้จะบันทึกในเครื่องด้วย localStorage)'}
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-zinc-200">
+                <span>🏠</span>
+                <span>Rent Calculator Workspace</span>
               </div>
+              <h1 className="text-2xl font-black tracking-tight text-white sm:text-4xl">คำนวณค่าห้องเช่า</h1>
+              <p className="mt-2 text-sm text-zinc-300 sm:text-base">
+                แยกเป็นแท็บสำหรับกรอกข้อมูล, วางแผน, ดูย้อนหลัง และจัดการการเชื่อมต่อ ใช้งานมือถือได้ง่ายขึ้น
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={syncFromGoogleSheets}
-              disabled={isSyncing || !appsScriptUrl}
-              className="px-4 py-2 rounded-lg bg-blue-600 disabled:bg-zinc-700 text-white font-medium"
-            >
-              {isSyncing ? 'กำลังซิงก์...' : 'ซิงก์จาก Google Sheets'}
-            </button>
-            <button
-              type="button"
-              onClick={testGoogleSheetsConnection}
-              disabled={!appsScriptUrl}
-              className="px-4 py-2 rounded-lg bg-zinc-700 disabled:bg-zinc-700/50 text-white font-medium"
-            >
-              ทดสอบการเชื่อมต่อ
-            </button>
-          </div>
-          {syncMessage && <div className="mt-2 text-emerald-300">{syncMessage}</div>}
-          <div className="mt-3 bg-black/30 border border-zinc-700 rounded-xl p-3">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div className="font-semibold text-zinc-100">Debug Log</div>
-              <button
-                type="button"
-                onClick={() => setDebugLogs([])}
-                className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-200"
-              >
-                ล้าง log
-              </button>
-            </div>
-            <div className="space-y-2 max-h-40 overflow-auto pr-1 text-xs">
-              {debugLogs.length === 0 && <div className="text-zinc-400">ยังไม่มี debug log</div>}
-              {debugLogs.map((item) => (
-                <div key={item.id} className="border border-zinc-800 rounded p-2">
-                  <div className="text-zinc-300">
-                    {formatDateTime(item.timestamp)} | <span className="text-cyan-300">{item.step}</span>
-                  </div>
-                  <pre className="whitespace-pre-wrap break-words text-zinc-400 mt-1">
-                    {typeof item.detail === 'string' ? item.detail : JSON.stringify(item.detail, null, 2)}
-                  </pre>
-                </div>
-              ))}
+            <div className={`rounded-2xl border ${statusUI.border} ${statusUI.bg} px-4 py-3`}>
+              <div className={`text-xs font-semibold ${statusUI.text}`}>สถานะงบประมาณ</div>
+              <div className={`mt-1 text-lg font-bold ${statusUI.text}`}>{statusUI.badge}</div>
+              <div className="mt-1 text-sm text-zinc-700">รวม {formatNumber(totalCost)} บาท</div>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <div className="xl:col-span-1 bg-white rounded-3xl shadow-2xl p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">💡 ข้อมูลค่าใช้จ่าย</h2>
+        <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <div className="text-xs text-zinc-400">รวมทั้งหมด</div>
+            <div className="mt-1 text-2xl font-bold text-white">{formatNumber(totalCost)}</div>
+            <div className="text-xs text-zinc-400">บาท</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <div className="text-xs text-zinc-400">ใช้ไฟเดือนนี้</div>
+            <div className="mt-1 text-2xl font-bold text-white">{electricUnitsUsed}</div>
+            <div className="text-xs text-zinc-400">หน่วย</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <div className="text-xs text-zinc-400">เดือนบิล</div>
+            <div className="mt-1 text-lg font-bold text-white">{billingMonth}</div>
+            <div className="text-xs text-zinc-400">ห้อง {ROOM_NO}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+            <div className="text-xs text-zinc-400">ข้อมูลย้อนหลัง</div>
+            <div className="mt-1 text-2xl font-bold text-white">{history.length}</div>
+            <div className="text-xs text-zinc-400">รายการ</div>
+          </div>
+        </section>
 
-            <div className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">📆 เดือนบิล</label>
-                <input
-                  type="month"
-                  value={billingMonth}
-                  onChange={(e) => setBillingMonth(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
-                />
-              </div>
+        <nav className="sticky top-3 z-20 mb-5 rounded-2xl border border-white/10 bg-zinc-950/70 p-2 backdrop-blur-xl">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {tabs.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                    active
+                      ? 'bg-white text-zinc-900 shadow'
+                      : 'bg-white/0 text-zinc-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <span className="mr-1">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">🏠 ค่าห้อง (บาท)</label>
-                <input
-                  type="number"
-                  value={roomPrice}
-                  onChange={(e) => setRoomPrice(toNumber(e.target.value))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">💧 ค่าน้ำ (บาท)</label>
-                <input
-                  type="number"
-                  value={waterPrice}
-                  onChange={(e) => setWaterPrice(toNumber(e.target.value))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+        {activeTab === 'entry' && (
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+              <div className="mb-5 flex items-start justify-between gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">⚡ หน่วยไฟเดือนที่แล้ว</label>
+                  <h2 className="text-xl font-bold text-zinc-900 sm:text-2xl">📝 กรอกข้อมูลเดือนนี้</h2>
+                  <p className="text-sm text-zinc-500">บันทึกค่าเช่า/น้ำ/ไฟ และใช้เลขหน่วยล่าสุดได้ทันที</p>
+                </div>
+                {latestReading && (
+                  <button
+                    type="button"
+                    onClick={handleUseLatestAsPrevious}
+                    className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700"
+                  >
+                    ใช้เลขล่าสุด
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">📆 เดือนบิล</label>
+                  <input
+                    type="month"
+                    value={billingMonth}
+                    onChange={(e) => setBillingMonth(e.target.value)}
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">🏠 ค่าห้อง (บาท)</label>
+                  <input
+                    type="number"
+                    value={roomPrice}
+                    onChange={(e) => setRoomPrice(toNumber(e.target.value))}
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">💧 ค่าน้ำ (บาท)</label>
+                  <input
+                    type="number"
+                    value={waterPrice}
+                    onChange={(e) => setWaterPrice(toNumber(e.target.value))}
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">⚡ หน่วยไฟเดือนที่แล้ว</label>
                   <input
                     type="number"
                     value={prevElectricUnit}
                     onChange={(e) => setPrevElectricUnit(toNumber(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">⚡ หน่วยไฟเดือนนี้</label>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">⚡ หน่วยไฟเดือนนี้</label>
                   <input
                     type="number"
                     value={currentElectricUnit}
                     onChange={(e) => setCurrentElectricUnit(toNumber(e.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">🔥 ค่าไฟต่อหน่วย</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={electricRate}
+                    onChange={(e) => setElectricRate(toNumber(e.target.value))}
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">🎯 เป้าหมายค่าใช้จ่าย</label>
+                  <input
+                    type="number"
+                    value={targetBudget}
+                    onChange={(e) => setTargetBudget(toNumber(e.target.value))}
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-lg"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">📝 หมายเหตุ</label>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-zinc-300 px-4 py-3"
+                    placeholder="เช่น เดือนนี้เปิดแอร์เยอะ"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              {latestReading && (
+                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  ล่าสุดในระบบ: เดือน {latestReading.billingMonth} | หน่วยไฟเดือนนี้ {latestReading.currentElectricUnit}
+                </div>
+              )}
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
                 <button
                   type="button"
-                  onClick={handleUseLatestAsPrevious}
-                  disabled={!latestReading}
-                  className="flex-1 px-4 py-2 rounded-lg bg-zinc-800 text-white disabled:bg-zinc-400"
+                  onClick={handleSaveReading}
+                  disabled={isSaving}
+                  className="rounded-2xl bg-emerald-600 px-5 py-3 text-lg font-bold text-white disabled:bg-emerald-300"
                 >
-                  ใช้เลขล่าสุดเป็นเดือนที่แล้ว
+                  {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลเดือนนี้'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('history')}
+                  className="rounded-2xl border border-zinc-300 px-5 py-3 font-semibold text-zinc-700"
+                >
+                  ดูย้อนหลัง
                 </button>
               </div>
 
-              {latestReading && (
-                <div className="text-sm bg-blue-50 text-blue-800 border border-blue-200 rounded-lg p-3">
-                  ล่าสุด: เดือน {latestReading.billingMonth} | หน่วยไฟเดือนนี้ {latestReading.currentElectricUnit}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">🔥 ค่าไฟต่อหน่วย (บาท)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={electricRate}
-                  onChange={(e) => setElectricRate(toNumber(e.target.value))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">🎯 เป้าหมายค่าใช้จ่าย (บาท)</label>
-                <input
-                  type="number"
-                  value={targetBudget}
-                  onChange={(e) => setTargetBudget(toNumber(e.target.value))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">📝 หมายเหตุ (optional)</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={2}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg"
-                  placeholder="เช่น เดือนนี้เปิดแอร์เยอะ"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSaveReading}
-                disabled={isSaving}
-                className="w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold text-lg disabled:bg-emerald-300"
-              >
-                {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลเดือนนี้'}
-              </button>
-
-              {saveMessage && (
-                <div className="text-sm rounded-lg p-3 bg-zinc-100 text-zinc-800 border border-zinc-200">{saveMessage}</div>
-              )}
+              {saveMessage && <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">{saveMessage}</div>}
             </div>
-          </div>
 
-          <div className="xl:col-span-2 space-y-6">
-            <div
-              className={`bg-white rounded-3xl shadow-2xl p-8 transition-all duration-300 ${
-                isOverBudget ? 'ring-4 ring-red-400' : isNearBudget ? 'ring-4 ring-yellow-400' : 'ring-4 ring-green-400'
-              }`}
-            >
-              <h2 className="text-2xl font-bold mb-6 text-gray-800">{isOverBudget ? '⚠️' : '✅'} ค่าใช้จ่ายปัจจุบัน</h2>
-
-              <div className="space-y-4">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">🏠 ค่าห้อง</span>
-                  <span className="font-semibold text-lg">{formatNumber(roomPrice)} บาท</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">💧 ค่าน้ำ</span>
-                  <span className="font-semibold text-lg">{formatNumber(waterPrice)} บาท</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b">
-                  <span className="text-gray-600">⚡ ไฟใช้ไป ({electricUnitsUsed} หน่วย)</span>
-                  <span className="font-semibold text-lg">{formatNumber(electricCost)} บาท</span>
-                </div>
-                <div
-                  className={`flex justify-between items-center py-3 border-2 rounded-xl px-4 ${
-                    isOverBudget ? 'bg-red-50 border-red-300' : isNearBudget ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'
-                  }`}
-                >
-                  <span className="font-bold text-xl">💰 รวมทั้งหมด</span>
-                  <span
-                    className={`font-bold text-2xl ${
-                      isOverBudget ? 'text-red-600' : isNearBudget ? 'text-yellow-600' : 'text-green-600'
-                    }`}
-                  >
-                    {formatNumber(totalCost)} บาท
+            <div className="space-y-5">
+              <div className={`rounded-3xl border-2 ${statusUI.border} ${statusUI.bg} p-5 shadow-xl`}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-bold text-zinc-900">💰 สรุปค่าใช้จ่าย</h3>
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusUI.bg} ${statusUI.text}`}>
+                    {statusUI.badge}
                   </span>
                 </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between border-b border-zinc-200 pb-2">
+                    <span className="text-zinc-600">ค่าห้อง</span>
+                    <span className="font-semibold">{formatNumber(roomPrice)} บาท</span>
+                  </div>
+                  <div className="flex justify-between border-b border-zinc-200 pb-2">
+                    <span className="text-zinc-600">ค่าน้ำ</span>
+                    <span className="font-semibold">{formatNumber(waterPrice)} บาท</span>
+                  </div>
+                  <div className="flex justify-between border-b border-zinc-200 pb-2">
+                    <span className="text-zinc-600">ค่าไฟ ({electricUnitsUsed} หน่วย)</span>
+                    <span className="font-semibold">{formatNumber(electricCost)} บาท</span>
+                  </div>
+                  <div className="mt-2 rounded-2xl bg-white/80 p-4">
+                    <div className="text-xs text-zinc-500">รวมทั้งหมด</div>
+                    <div className={`text-3xl font-black ${statusUI.text}`}>{formatNumber(totalCost)} บาท</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-3xl bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 p-5 text-white shadow-2xl">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold">⚡ ภาพรวมการใช้ไฟ</h3>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('plan')}
+                    className="rounded-full border border-white/40 bg-white/15 px-3 py-1 text-xs font-semibold"
+                  >
+                    เปิดแท็บแผนใช้ไฟ
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-white/20 p-3">
+                    <div className="text-xs opacity-90">วันนี้</div>
+                    <div className="text-xl font-bold">{currentDay}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/20 p-3">
+                    <div className="text-xs opacity-90">วันในเดือน</div>
+                    <div className="text-xl font-bold">{totalDaysInMonth}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/20 p-3">
+                    <div className="text-xs opacity-90">เหลือใช้ได้</div>
+                    <div className="text-xl font-bold">{formatNumber(remainingElectricUnits)}</div>
+                    <div className="text-[11px] opacity-80">หน่วย</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/20 p-3">
+                    <div className="text-xs opacity-90">หน่วย/วันแนะนำ</div>
+                    <div className="text-xl font-bold">{electricUnitsPerDay.toFixed(1)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'plan' && (
+          <section className="space-y-5">
+            <div className="rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+              <h2 className="text-xl font-bold text-zinc-900 sm:text-2xl">📅 แผนใช้ไฟตามงบ</h2>
+              <p className="mt-1 text-sm text-zinc-500">ดูงบค่าไฟที่เหลือและจำนวนหน่วยที่ควรใช้ต่อวันสำหรับเดือนนี้</p>
+              <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="text-xs text-zinc-500">งบค่าไฟที่เหลือ</div>
+                  <div className="mt-1 text-2xl font-bold text-zinc-900">{formatNumber(budgetForElectric)}</div>
+                  <div className="text-xs text-zinc-500">บาท</div>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="text-xs text-zinc-500">หน่วยไฟใช้ได้ทั้งเดือน</div>
+                  <div className="mt-1 text-2xl font-bold text-zinc-900">{formatNumber(maxElectricUnitsForMonth)}</div>
+                  <div className="text-xs text-zinc-500">หน่วย</div>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="text-xs text-zinc-500">หน่วยไฟต่อวัน</div>
+                  <div className="mt-1 text-2xl font-bold text-zinc-900">{electricUnitsPerDay.toFixed(1)}</div>
+                  <div className="text-xs text-zinc-500">หน่วย/วัน</div>
+                </div>
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="text-xs text-zinc-500">วันที่เหลือ</div>
+                  <div className="mt-1 text-2xl font-bold text-zinc-900">{remainingDays}</div>
+                  <div className="text-xs text-zinc-500">วัน</div>
+                </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-3xl shadow-2xl p-8 text-white">
-              <h2 className="text-2xl font-bold mb-6">📅 เป้าหมายและวางแผน</h2>
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90">📅 วันนี้</div>
-                  <div className="text-2xl font-bold">{currentDay}</div>
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-zinc-100 shadow-xl backdrop-blur">
+              <h3 className="text-lg font-bold">คำแนะนำเร็ว</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-zinc-300">เลขเดือนก่อน</div>
+                  <div className="mt-1 text-2xl font-bold">{prevElectricUnit}</div>
                 </div>
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90">📆 วันในเดือน</div>
-                  <div className="text-2xl font-bold">{totalDaysInMonth}</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-zinc-300">เลขเดือนนี้</div>
+                  <div className="mt-1 text-2xl font-bold">{currentElectricUnit}</div>
                 </div>
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90">⏳ วันที่เหลือ</div>
-                  <div className="text-2xl font-bold">{remainingDays}</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-zinc-300">ค่าไฟต่อหน่วย</div>
+                  <div className="mt-1 text-2xl font-bold">{electricRate}</div>
                 </div>
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90">🎯 เป้าหมาย</div>
-                  <div className="text-xl font-bold">{formatNumber(targetBudget)}฿</div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90 mb-2">💡 งบค่าไฟที่เหลือ</div>
-                  <div className="text-xl font-bold">{formatNumber(budgetForElectric)} บาท</div>
-                </div>
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90 mb-2">⚡ หน่วยไฟใช้ได้ทั้งเดือน</div>
-                  <div className="text-xl font-bold">{formatNumber(maxElectricUnitsForMonth)} หน่วย</div>
-                </div>
-                <div className="bg-white/20 rounded-xl p-4">
-                  <div className="text-sm opacity-90 mb-2">📊 หน่วยไฟ/วันที่แนะนำ</div>
-                  <div className="text-xl font-bold">{electricUnitsPerDay.toFixed(1)} หน่วย/วัน</div>
-                </div>
-                <div className="bg-white/30 rounded-xl p-4 border-2 border-white/50">
-                  <div className="text-sm opacity-90 mb-2">🔋 หน่วยไฟที่เหลือใช้ได้</div>
-                  <div className="text-2xl font-bold">{formatNumber(remainingElectricUnits)} หน่วย</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm text-zinc-300">เป้าหมายรวม</div>
+                  <div className="mt-1 text-2xl font-bold">{formatNumber(targetBudget)}฿</div>
                 </div>
               </div>
             </div>
+          </section>
+        )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-3xl shadow-2xl p-6">
-                <h3 className="text-xl font-bold mb-4 text-gray-800">📚 ประวัติย้อนหลัง</h3>
-                <div className="space-y-3 max-h-96 overflow-auto pr-1">
-                  {history.length === 0 && <div className="text-gray-500">ยังไม่มีข้อมูลที่บันทึก</div>}
-                  {history.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setBillingMonth(item.billingMonth);
-                        setRoomPrice(toNumber(item.roomPrice));
-                        setWaterPrice(toNumber(item.waterPrice));
-                        setPrevElectricUnit(toNumber(item.prevElectricUnit));
-                        setCurrentElectricUnit(toNumber(item.currentElectricUnit));
-                        setElectricRate(toNumber(item.electricRate));
-                        setTargetBudget(toNumber(item.targetBudget));
-                        setNote(item.note || '');
-                      }}
-                      className="w-full text-left border rounded-xl p-3 hover:bg-zinc-50"
-                    >
-                      <div className="flex justify-between gap-3">
-                        <div className="font-semibold">เดือน {item.billingMonth}</div>
-                        <div className="text-sm text-zinc-500">{formatDateTime(item.updatedAt)}</div>
-                      </div>
-                      <div className="text-sm text-zinc-700 mt-1">
-                        หน่วยก่อน {item.prevElectricUnit} | หน่วยนี้ {item.currentElectricUnit} | ใช้ {item.electricUnitsUsed}
-                      </div>
-                      <div className="text-sm text-zinc-700">รวม {formatNumber(item.totalCost)} บาท</div>
-                    </button>
-                  ))}
-                </div>
+        {activeTab === 'history' && (
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-zinc-900 sm:text-2xl">📚 ประวัติย้อนหลัง</h2>
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
+                  {history.length} รายการ
+                </span>
               </div>
-
-              <div className="bg-white rounded-3xl shadow-2xl p-6">
-                <h3 className="text-xl font-bold mb-4 text-gray-800">🧾 Logs</h3>
-                <div className="space-y-3 max-h-96 overflow-auto pr-1">
-                  {logs.length === 0 && <div className="text-gray-500">ยังไม่มี log</div>}
-                  {logs.map((log) => (
-                    <div key={log.id} className="border rounded-xl p-3">
-                      <div className="flex justify-between gap-3">
-                        <div className="font-semibold text-sm">{log.action}</div>
-                        <div className="text-xs text-zinc-500">{formatDateTime(log.timestamp)}</div>
-                      </div>
-                      <div className="text-sm text-zinc-700 mt-1">
-                        {log.detail?.billingMonth ? `เดือน ${log.detail.billingMonth}` : ''}
-                        {log.detail?.after?.currentElectricUnit ? ` | หน่วยไฟ ${log.detail.after.currentElectricUnit}` : ''}
-                      </div>
+              <div className="space-y-3 max-h-[60vh] overflow-auto pr-1">
+                {history.length === 0 && <div className="rounded-xl border border-zinc-200 p-4 text-zinc-500">ยังไม่มีข้อมูลที่บันทึก</div>}
+                {history.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setBillingMonth(item.billingMonth);
+                      setRoomPrice(toNumber(item.roomPrice));
+                      setWaterPrice(toNumber(item.waterPrice));
+                      setPrevElectricUnit(toNumber(item.prevElectricUnit));
+                      setCurrentElectricUnit(toNumber(item.currentElectricUnit));
+                      setElectricRate(toNumber(item.electricRate));
+                      setTargetBudget(toNumber(item.targetBudget));
+                      setNote(item.note || '');
+                      setActiveTab('entry');
+                    }}
+                    className="w-full rounded-2xl border border-zinc-200 p-4 text-left transition hover:border-zinc-400 hover:bg-zinc-50"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-zinc-900">เดือน {item.billingMonth}</div>
+                      <div className="text-xs text-zinc-500">{formatDateTime(item.updatedAt)}</div>
                     </div>
-                  ))}
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-700 sm:grid-cols-4">
+                      <div>ก่อน: {item.prevElectricUnit}</div>
+                      <div>ปัจจุบัน: {item.currentElectricUnit}</div>
+                      <div>ใช้: {item.electricUnitsUsed}</div>
+                      <div>รวม: {formatNumber(item.totalCost)}฿</div>
+                    </div>
+                    {item.note && <div className="mt-2 text-xs text-zinc-500">โน้ต: {item.note}</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-zinc-100 shadow-xl backdrop-blur">
+                <h3 className="text-lg font-bold">เลขล่าสุดสำหรับเดือนถัดไป</h3>
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  {latestReading ? (
+                    <>
+                      <div className="text-sm text-zinc-300">เดือนล่าสุด</div>
+                      <div className="mt-1 text-xl font-bold">{latestReading.billingMonth}</div>
+                      <div className="mt-3 text-sm text-zinc-300">หน่วยไฟเดือนนี้ (ใช้เป็นเดือนที่แล้วได้)</div>
+                      <div className="text-3xl font-black">{latestReading.currentElectricUnit}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleUseLatestAsPrevious();
+                          setActiveTab('entry');
+                        }}
+                        className="mt-4 rounded-xl bg-blue-500 px-4 py-2 text-sm font-bold text-white"
+                      >
+                        ใช้เลขนี้ในฟอร์ม
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-sm text-zinc-300">ยังไม่มีข้อมูลย้อนหลัง</div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </section>
+        )}
 
-        <div className="text-center mt-8 text-gray-400">
-          <p>ถ้าไม่ตั้งค่า Google Sheets ระบบจะบันทึกในเครื่องนี้ก่อน (localStorage)</p>
+        {activeTab === 'logs' && (
+          <section className="rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-zinc-900 sm:text-2xl">🧾 Activity Logs</h2>
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">{logs.length} logs</span>
+            </div>
+            <div className="space-y-3 max-h-[70vh] overflow-auto pr-1">
+              {logs.length === 0 && <div className="rounded-xl border border-zinc-200 p-4 text-zinc-500">ยังไม่มี log</div>}
+              {logs.map((log) => (
+                <div key={log.id} className="rounded-2xl border border-zinc-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-bold text-white">{log.action}</div>
+                    <div className="text-xs text-zinc-500">{formatDateTime(log.timestamp)}</div>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm text-zinc-700 sm:grid-cols-2">
+                    <div>ผู้ใช้: {log.actor || '-'}</div>
+                    <div>เดือน: {log.detail?.billingMonth || log.billingMonth || '-'}</div>
+                    <div>ห้อง: {log.detail?.roomNo || log.roomNo || ROOM_NO}</div>
+                    <div>หน่วยไฟ: {log.detail?.after?.currentElectricUnit || '-'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'sync' && (
+          <section className="space-y-5">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-zinc-100 shadow-xl backdrop-blur sm:p-6">
+              <h2 className="text-xl font-bold sm:text-2xl">🔗 Google Sheets Sync</h2>
+              <p className="mt-2 text-sm text-zinc-300">ใช้แท็บนี้สำหรับทดสอบการเชื่อมต่อ, ซิงก์ข้อมูลจากชีต และดู debug log</p>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="text-xs text-zinc-400">Apps Script URL</div>
+                <div className="mt-1 break-all text-sm text-zinc-100">{appsScriptUrl || 'ยังไม่ตั้งค่า'}</div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={testGoogleSheetsConnection}
+                  disabled={!appsScriptUrl}
+                  className="rounded-2xl bg-zinc-800 px-4 py-3 font-semibold text-white disabled:opacity-60"
+                >
+                  ทดสอบการเชื่อมต่อ
+                </button>
+                <button
+                  type="button"
+                  onClick={syncFromGoogleSheets}
+                  disabled={isSyncing || !appsScriptUrl}
+                  className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white disabled:opacity-60"
+                >
+                  {isSyncing ? 'กำลังซิงก์...' : 'ซิงก์จาก Google Sheets'}
+                </button>
+              </div>
+
+              {syncMessage && (
+                <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+                  {syncMessage}
+                </div>
+              )}
+            </div>
+
+            <details className="rounded-3xl border border-zinc-800 bg-zinc-950/80 p-5 text-zinc-100" open>
+              <summary className="cursor-pointer list-none text-lg font-bold">Debug Log</summary>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setDebugLogs([])}
+                  className="rounded-lg bg-zinc-800 px-3 py-1 text-xs font-semibold"
+                >
+                  ล้าง log
+                </button>
+              </div>
+              <div className="mt-3 space-y-2 max-h-[45vh] overflow-auto pr-1 text-xs">
+                {debugLogs.length === 0 && <div className="rounded-xl border border-zinc-800 p-3 text-zinc-400">ยังไม่มี debug log</div>}
+                {debugLogs.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-zinc-800 p-3">
+                    <div className="text-zinc-300">
+                      {formatDateTime(item.timestamp)} | <span className="text-cyan-300">{item.step}</span>
+                    </div>
+                    <pre className="mt-1 whitespace-pre-wrap break-words text-zinc-400">
+                      {typeof item.detail === 'string' ? item.detail : JSON.stringify(item.detail, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </section>
+        )}
+
+        <div className="mt-6 text-center text-xs text-zinc-500">
+          <p>ใช้แท็บล่าง/ด้านบนเพื่อสลับงานแต่ละส่วน แทนการเลื่อนหน้าเดียวที่ยาว</p>
         </div>
       </div>
     </div>
