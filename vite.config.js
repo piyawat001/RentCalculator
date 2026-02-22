@@ -1,17 +1,15 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { APPS_SCRIPT_URL, APPS_SCRIPT_PROXY_PATH } from './shared/app-config.js'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, '.', '')
-  const appsScriptUrl = (env.VITE_APPS_SCRIPT_URL || '').trim()
-
+export default defineConfig(() => {
   let proxyConfig = undefined
 
-  if (appsScriptUrl) {
-    const parsed = new URL(appsScriptUrl)
+  if (APPS_SCRIPT_URL) {
+    const parsed = new URL(APPS_SCRIPT_URL)
     proxyConfig = {
-      '/apps-script-proxy': {
+      [APPS_SCRIPT_PROXY_PATH]: {
         target: parsed.origin,
         changeOrigin: true,
         secure: true,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { APPS_SCRIPT_PROXY_PATH, APPS_SCRIPT_URL } from '../shared/app-config.js';
 
 const STORAGE_KEYS = {
   readings: 'rent-calculator:meter-readings',
@@ -59,9 +60,8 @@ const RentCalculator = () => {
   const [syncMessage, setSyncMessage] = useState('');
   const [debugLogs, setDebugLogs] = useState([]);
 
-  const appsScriptUrl = (import.meta.env.VITE_APPS_SCRIPT_URL || '').trim();
-  const requestUrl =
-    import.meta.env.DEV && appsScriptUrl.startsWith('https://script.google.com') ? '/apps-script-proxy' : appsScriptUrl;
+  const appsScriptUrl = APPS_SCRIPT_URL;
+  const requestUrl = APPS_SCRIPT_PROXY_PATH;
 
   const electricUnitsUsed = Math.max(0, currentElectricUnit - prevElectricUnit);
   const electricCost = electricUnitsUsed * electricRate;
@@ -113,7 +113,7 @@ const RentCalculator = () => {
   };
 
   const fetchRemote = async (method, payload) => {
-    if (!appsScriptUrl) throw new Error('ยังไม่ได้ตั้งค่า VITE_APPS_SCRIPT_URL');
+    if (!appsScriptUrl) throw new Error('ยังไม่ได้ตั้งค่า APPS_SCRIPT_URL ในโค้ด');
     addDebugLog('request:start', { method, payload, url: requestUrl, directUrl: appsScriptUrl });
 
     let response;
@@ -153,7 +153,7 @@ const RentCalculator = () => {
   const testGoogleSheetsConnection = async () => {
     setSyncMessage('');
     if (!appsScriptUrl) {
-      setSyncMessage('ยังไม่ตั้งค่า Google Sheets URL');
+      setSyncMessage('ยังไม่ตั้งค่า Google Sheets URL ในโค้ด');
       return;
     }
 
@@ -167,7 +167,7 @@ const RentCalculator = () => {
 
   const syncFromGoogleSheets = async () => {
     if (!appsScriptUrl) {
-      setSyncMessage('ยังไม่ตั้งค่า Google Sheets URL (ใช้ local ได้ปกติ)');
+      setSyncMessage('ยังไม่ตั้งค่า Google Sheets URL ในโค้ด (ใช้ local ได้ปกติ)');
       return;
     }
 
@@ -303,7 +303,7 @@ const RentCalculator = () => {
             <div>
               <div className="font-semibold">Google Sheets Sync (optional)</div>
               <div className="text-zinc-400 break-all">
-                {appsScriptUrl ? `เชื่อม URL แล้ว: ${appsScriptUrl}` : 'ยังไม่ตั้งค่า `VITE_APPS_SCRIPT_URL` (ตอนนี้จะบันทึกในเครื่องด้วย localStorage)'}
+                {appsScriptUrl ? `เชื่อม URL แล้ว: ${appsScriptUrl}` : 'ยังไม่ตั้งค่า `APPS_SCRIPT_URL` ในโค้ด (ตอนนี้จะบันทึกในเครื่องด้วย localStorage)'}
               </div>
             </div>
             <button
